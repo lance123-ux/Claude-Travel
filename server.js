@@ -6,11 +6,51 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve Leaflet from local node_modules so the app works without internet
+app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules/leaflet/dist')));
 
 const LITEAPI_BASE = 'https://api.liteapi.travel/v3.0';
 const CLAUDE_API  = 'https://api.anthropic.com/v1/messages';
 const CHECKIN     = '2026-03-05';
 const CHECKOUT    = '2026-03-06';
+
+// ─── Demo mode (no API keys) ──────────────────────────────────────────────────
+
+const DEMO_MODE = !process.env.ANTHROPIC_API_KEY || !process.env.LITEAPI_KEY;
+if (DEMO_MODE) {
+  console.warn('\n⚠️  DEMO MODE — API keys not found in .env. Serving mock data.\n');
+}
+
+const DEMO_REPLIES = {
+  default: (city) => `Oh hey, great choice picking ${city}! 🎉 Let me break this down for you two lovebirds...
+
+In most major destinations, couples actually get WAY more bang for their buck in a **private hostel room** vs a traditional hotel. You get the social vibe, great common areas, usually a killer location — and you're not paying for a marble lobby nobody uses.
+
+That said, hostels vary a LOT. In Southeast Asia (Vietnam, Thailand), private hostel rooms can be genuinely gorgeous for $25-45/night. In Japan, a capsule hotel or hostel private room is a unique experience you shouldn't miss!
+
+Europe is a toss-up — Barcelona and Lisbon have incredible boutique hostels, but Madrid and Seville have budget hotels that rival them on price.
+
+Australia? Hotels there are pricey across the board. A private hostel room in Sydney or Melbourne can save you $80-120/night vs a hotel.
+
+🏆 Verdict: Private Hostel Room ✅ — Best of both worlds: privacy for the couple, social spaces when you want them, and your wallet says thank you!`
+};
+
+function getDemoReply(city) {
+  return DEMO_REPLIES[city] || DEMO_REPLIES.default(city);
+}
+
+function getDemoSummary(city, country) {
+  const hostelBase   = Math.floor(Math.random() * 40) + 20;
+  const privateBase  = Math.floor(Math.random() * 80) + 80;
+  return {
+    city, country,
+    checkin:  CHECKIN,
+    checkout: CHECKOUT,
+    adults:   2,
+    hostels:      { count: Math.floor(Math.random() * 8) + 3,  cheapest: hostelBase,             average: (hostelBase + 15).toFixed(2) },
+    privateRooms: { count: Math.floor(Math.random() * 15) + 8, cheapest: privateBase,            average: (privateBase + 40).toFixed(2) }
+  };
+}
 
 // ─── LiteAPI helper ──────────────────────────────────────────────────────────
 
@@ -148,6 +188,12 @@ app.post('/api/recommend', async (req, res) => {
     return res.status(400).json({ error: 'city and countryCode are required' });
   }
 
+  // Demo mode — return mock data instantly
+  if (DEMO_MODE) {
+    const summary = getDemoSummary(city, country || countryCode);
+    return res.json({ reply: getDemoReply(city), summary, demo: true });
+  }
+
   try {
     // 1. Fetch hotels from LiteAPI
     const hotels = await fetchHotels(countryCode, city);
@@ -180,7 +226,6 @@ app.post('/api/recommend', async (req, res) => {
     res.json({ reply: aiReply, summary });
   } catch (err) {
     console.error('Recommendation error:', err.response?.data || err.message);
-    // Gracefully fall back to Claude without pricing data
     try {
       const message = userMessage || `Should a couple stay in a hostel or private room in ${city}, ${country || countryCode}?`;
       const aiReply = await askClaude(null, message);
@@ -195,6 +240,10 @@ app.post('/api/recommend', async (req, res) => {
 app.post('/api/chat', async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'message is required' });
+
+  if (DEMO_MODE) {
+    return res.json({ reply: getDemoReply('your destination'), demo: true });
+  }
 
   try {
     const reply = await askClaude(null, message);

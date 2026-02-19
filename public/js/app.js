@@ -3,40 +3,67 @@
    Dates: 05 Mar 2026 → 06 Mar 2026 | 2 Adults
 ════════════════════════════════════════════════════════ */
 
-// ─── City Data ────────────────────────────────────────────────────────────────
+// ─── City Data (with lat/lng for map) ────────────────────────────────────────
 
 const CITIES = [
-  { name: 'Hanoi',         country: 'Vietnam',   countryCode: 'VN', flag: '🇻🇳', region: 'AS' },
-  { name: 'Ho Chi Minh City', country: 'Vietnam', countryCode: 'VN', flag: '🇻🇳', region: 'AS' },
-  { name: 'Tokyo',         country: 'Japan',      countryCode: 'JP', flag: '🇯🇵', region: 'AS' },
-  { name: 'Osaka',         country: 'Japan',      countryCode: 'JP', flag: '🇯🇵', region: 'AS' },
-  { name: 'Kyoto',         country: 'Japan',      countryCode: 'JP', flag: '🇯🇵', region: 'AS' },
-  { name: 'Barcelona',     country: 'Spain',      countryCode: 'ES', flag: '🇪🇸', region: 'EU' },
-  { name: 'Madrid',        country: 'Spain',      countryCode: 'ES', flag: '🇪🇸', region: 'EU' },
-  { name: 'Seville',       country: 'Spain',      countryCode: 'ES', flag: '🇪🇸', region: 'EU' },
-  { name: 'Lisbon',        country: 'Portugal',   countryCode: 'PT', flag: '🇵🇹', region: 'EU' },
-  { name: 'Porto',         country: 'Portugal',   countryCode: 'PT', flag: '🇵🇹', region: 'EU' },
-  { name: 'Sydney',        country: 'Australia',  countryCode: 'AU', flag: '🇦🇺', region: 'OC' },
-  { name: 'Melbourne',     country: 'Australia',  countryCode: 'AU', flag: '🇦🇺', region: 'OC' },
-  { name: 'Brisbane',      country: 'Australia',  countryCode: 'AU', flag: '🇦🇺', region: 'OC' },
-  { name: 'Cairns',        country: 'Australia',  countryCode: 'AU', flag: '🇦🇺', region: 'OC' },
+  { name: 'Hanoi',            country: 'Vietnam',   countryCode: 'VN', flag: '🇻🇳', region: 'AS', lat: 21.0285, lng: 105.8542 },
+  { name: 'Ho Chi Minh City', country: 'Vietnam',   countryCode: 'VN', flag: '🇻🇳', region: 'AS', lat: 10.8231, lng: 106.6297 },
+  { name: 'Tokyo',            country: 'Japan',     countryCode: 'JP', flag: '🇯🇵', region: 'AS', lat: 35.6762, lng: 139.6503 },
+  { name: 'Osaka',            country: 'Japan',     countryCode: 'JP', flag: '🇯🇵', region: 'AS', lat: 34.6937, lng: 135.5023 },
+  { name: 'Kyoto',            country: 'Japan',     countryCode: 'JP', flag: '🇯🇵', region: 'AS', lat: 35.0116, lng: 135.7681 },
+  { name: 'Barcelona',        country: 'Spain',     countryCode: 'ES', flag: '🇪🇸', region: 'EU', lat: 41.3851, lng: 2.1734  },
+  { name: 'Madrid',           country: 'Spain',     countryCode: 'ES', flag: '🇪🇸', region: 'EU', lat: 40.4168, lng: -3.7038 },
+  { name: 'Seville',          country: 'Spain',     countryCode: 'ES', flag: '🇪🇸', region: 'EU', lat: 37.3891, lng: -5.9845 },
+  { name: 'Lisbon',           country: 'Portugal',  countryCode: 'PT', flag: '🇵🇹', region: 'EU', lat: 38.7169, lng: -9.1399 },
+  { name: 'Porto',            country: 'Portugal',  countryCode: 'PT', flag: '🇵🇹', region: 'EU', lat: 41.1496, lng: -8.6109 },
+  { name: 'Sydney',           country: 'Australia', countryCode: 'AU', flag: '🇦🇺', region: 'OC', lat: -33.8688, lng: 151.2093 },
+  { name: 'Melbourne',        country: 'Australia', countryCode: 'AU', flag: '🇦🇺', region: 'OC', lat: -37.8136, lng: 144.9631 },
+  { name: 'Brisbane',         country: 'Australia', countryCode: 'AU', flag: '🇦🇺', region: 'OC', lat: -27.4698, lng: 153.0251 },
+  { name: 'Cairns',           country: 'Australia', countryCode: 'AU', flag: '🇦🇺', region: 'OC', lat: -16.9186, lng: 145.7781 },
 ];
+
+const REGION_COLORS = { AS: '#6c63ff', EU: '#ff6584', OC: '#43c59e' };
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-let currentFilter  = 'all';
-let selectedCity   = null;
-let isAiLoading    = false;
-const cityResults  = {};    // Cache: cityName → { reply, summary }
+let currentFilter = 'all';
+let currentView   = 'grid';   // 'grid' | 'map'
+let selectedCity  = null;
+let isAiLoading   = false;
+let leafletMap    = null;
+let mapMarkers    = {};       // cityName → L.marker
+const cityResults = {};       // cityName → { reply, summary }
+
+// Expose map globals for debugging / external access
+window.mapMarkers = mapMarkers;
+Object.defineProperty(window, 'leafletMap', { get: () => leafletMap });
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 
-const chatWindow  = document.getElementById('chatWindow');
-const chatInput   = document.getElementById('chatInput');
-const sendBtn     = document.getElementById('sendBtn');
-const citiesGrid  = document.getElementById('citiesGrid');
-const contextBar  = document.getElementById('contextBar');
-const contextText = document.getElementById('contextText');
+const chatWindow   = document.getElementById('chatWindow');
+const chatInput    = document.getElementById('chatInput');
+const sendBtn      = document.getElementById('sendBtn');
+const citiesGrid   = document.getElementById('citiesGrid');
+const mapContainer = document.getElementById('mapContainer');
+const contextBar   = document.getElementById('contextBar');
+const contextText  = document.getElementById('contextText');
+const gridViewBtn  = document.getElementById('gridViewBtn');
+const mapViewBtn   = document.getElementById('mapViewBtn');
+
+// ─── View toggle ──────────────────────────────────────────────────────────────
+
+gridViewBtn.addEventListener('click', () => switchView('grid'));
+mapViewBtn.addEventListener('click',  () => switchView('map'));
+
+function switchView(view) {
+  currentView = view;
+  gridViewBtn.classList.toggle('active', view === 'grid');
+  mapViewBtn.classList.toggle('active',  view === 'map');
+  citiesGrid.style.display   = view === 'grid' ? '' : 'none';
+  mapContainer.classList.toggle('hidden', view !== 'map');
+
+  if (view === 'map') initMap();
+}
 
 // ─── Render city cards ────────────────────────────────────────────────────────
 
@@ -48,13 +75,13 @@ function renderCities() {
   citiesGrid.innerHTML = '';
 
   filtered.forEach(city => {
-    const card    = document.createElement('div');
-    const cached  = cityResults[city.name];
-    const isDone  = !!cached;
+    const card   = document.createElement('div');
+    const cached = cityResults[city.name];
+    const isDone = !!cached;
 
-    card.className  = 'city-card' + (selectedCity?.name === city.name ? ' selected' : '');
+    card.className    = 'city-card' + (selectedCity?.name === city.name ? ' selected' : '');
     card.dataset.name = city.name;
-    card.innerHTML  = `
+    card.innerHTML    = `
       <div class="city-flag">${city.flag}</div>
       <div class="city-name">${city.name}</div>
       <div class="city-country">${city.country}</div>
@@ -74,30 +101,188 @@ function regionLabel(code) {
   return { AS: 'Asia', EU: 'Europe', OC: 'Oceania' }[code] || code;
 }
 
-// ─── City click handler ───────────────────────────────────────────────────────
+// ─── Leaflet map ──────────────────────────────────────────────────────────────
 
-async function handleCityClick(city, cardEl) {
-  if (isAiLoading) return;
+function initMap() {
+  if (leafletMap) {
+    leafletMap.invalidateSize();
+    return;
+  }
 
-  // Update selection UI
-  document.querySelectorAll('.city-card').forEach(c => c.classList.remove('selected'));
-  cardEl.classList.add('selected');
+  leafletMap = L.map('accommodationMap', {
+    center: [25, 50],
+    zoom: 2,
+    zoomControl: true,
+    attributionControl: true
+  });
+
+  // Primary: CartoDB Positron (online)
+  // Fallback: SVG grid canvas when offline
+  const onlineTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  });
+
+  // Offline fallback — SVG tile rendered as a data URI
+  const svgTile = encodeURIComponent([
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">',
+    '<rect width="256" height="256" fill="#dce9f5"/>',
+    '<rect width="256" height="256" fill="url(#g)" opacity="0.4"/>',
+    '<defs><pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse">',
+    '<path d="M 32 0 L 0 0 0 32" fill="none" stroke="#c0d8ee" stroke-width="0.5"/>',
+    '</pattern></defs>',
+    '</svg>'
+  ].join(''));
+  const offlineTiles = L.tileLayer(`data:image/svg+xml,${svgTile}`, {
+    attribution: 'Offline mode',
+    maxZoom: 19,
+    tileSize: 256
+  });
+
+  // Try online first, fall back after 4 s if no tiles loaded
+  let tilesLoaded = 0;
+  onlineTiles.on('tileload', () => { tilesLoaded++; });
+  onlineTiles.addTo(leafletMap);
+  setTimeout(() => {
+    if (tilesLoaded === 0) {
+      leafletMap.removeLayer(onlineTiles);
+      offlineTiles.addTo(leafletMap);
+    }
+  }, 4000);
+
+  // Add a city marker for every destination
+  CITIES.forEach(city => addCityMarker(city));
+
+  // Fit map to show all markers
+  const group = L.featureGroup(Object.values(mapMarkers));
+  leafletMap.fitBounds(group.getBounds().pad(0.15));
+}
+
+function addCityMarker(city) {
+  const color   = REGION_COLORS[city.region] || '#6c63ff';
+  const cached  = cityResults[city.name];
+
+  // SVG pin icon
+  const svgIcon = L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        width:34px; height:34px;
+        background:${color};
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        border:3px solid rgba(255,255,255,.9);
+        box-shadow:0 4px 12px rgba(0,0,0,.25);
+        display:flex; align-items:center; justify-content:center;
+        cursor:pointer;
+        transition:transform .2s;
+      ">
+        <span style="transform:rotate(45deg);font-size:14px;line-height:1">${city.flag}</span>
+      </div>`,
+    iconSize:   [34, 34],
+    iconAnchor: [17, 34],
+    popupAnchor:[0, -36]
+  });
+
+  const marker = L.marker([city.lat, city.lng], { icon: svgIcon });
+  marker.addTo(leafletMap);
+  marker.bindPopup(() => buildPopupContent(city), { maxWidth: 240, minWidth: 200 });
+  marker.on('click', () => {
+    if (!cityResults[city.name]) triggerCityFromMap(city);
+  });
+
+  mapMarkers[city.name] = marker;
+}
+
+function buildPopupContent(city) {
+  const cached = cityResults[city.name];
+  const color  = REGION_COLORS[city.region];
+
+  const pricesHtml = cached?.summary
+    ? `<div class="map-popup-prices">
+        <div class="map-popup-price-row">🏨 Hostel <strong>from $${cached.summary.hostels.cheapest ?? 'N/A'}</strong></div>
+        <div class="map-popup-price-row">🏩 Hotel &nbsp;<strong>from $${cached.summary.privateRooms.cheapest ?? 'N/A'}</strong></div>
+       </div>`
+    : `<div style="font-size:12px;color:#9598b0;margin-top:8px">Click to get AI recommendation</div>`;
+
+  const btnLabel = cached ? '💬 View Recommendation' : '✨ Ask Wanderly';
+
+  const div = document.createElement('div');
+  div.className = 'map-popup';
+  div.innerHTML = `
+    <div style="height:5px;background:linear-gradient(90deg,${color},${color}aa);margin:-0px 0 12px;border-radius:0"></div>
+    <div class="map-popup-flag">${city.flag}</div>
+    <div class="map-popup-city">${city.name}</div>
+    <div class="map-popup-country">${city.country} · ${regionLabel(city.region)}</div>
+    ${pricesHtml}
+    <button class="map-popup-btn" id="popup-btn-${city.name.replace(/\s/g,'_')}">${btnLabel}</button>
+  `;
+
+  // Wire button click after DOM insertion
+  setTimeout(() => {
+    const btn = document.getElementById(`popup-btn-${city.name.replace(/\s/g,'_')}`);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        leafletMap.closePopup();
+        triggerCityFromMap(city);
+      });
+    }
+  }, 10);
+
+  return div;
+}
+
+async function triggerCityFromMap(city) {
   selectedCity = city;
-
-  // Update context bar
   contextBar.classList.add('active');
   contextText.textContent = `${city.flag} ${city.name}, ${city.country}`;
 
-  // If cached, just display
   if (cityResults[city.name]) {
     scrollChatToBottom();
     return;
   }
 
-  // Add user message bubble
   addMessage('user', `Should we stay in a hostel or private room in ${city.name}? 🤔`);
+  const typingEl = showTyping();
+  setAiLoading(true);
 
-  // Show typing indicator
+  try {
+    const data = await fetchRecommendation(city);
+    removeTyping(typingEl);
+    addMessage('bot', formatReply(data.reply), data.summary);
+    cityResults[city.name] = data;
+
+    // Refresh popup if open to show prices
+    if (mapMarkers[city.name]) {
+      mapMarkers[city.name].setPopupContent(buildPopupContent(city));
+    }
+  } catch {
+    removeTyping(typingEl);
+    addMessage('bot', `Couldn't grab data for ${city.name} right now 😅 — try again in a sec!`);
+  } finally {
+    setAiLoading(false);
+  }
+}
+
+// ─── City card click handler ──────────────────────────────────────────────────
+
+async function handleCityClick(city, cardEl) {
+  if (isAiLoading) return;
+
+  document.querySelectorAll('.city-card').forEach(c => c.classList.remove('selected'));
+  cardEl.classList.add('selected');
+  selectedCity = city;
+
+  contextBar.classList.add('active');
+  contextText.textContent = `${city.flag} ${city.name}, ${city.country}`;
+
+  if (cityResults[city.name]) {
+    scrollChatToBottom();
+    return;
+  }
+
+  addMessage('user', `Should we stay in a hostel or private room in ${city.name}? 🤔`);
   const typingEl = showTyping();
   cardEl.classList.add('loading');
   setStatusOnCard(cardEl, '<span class="card-spinner"></span>');
@@ -106,15 +291,12 @@ async function handleCityClick(city, cardEl) {
   try {
     const data = await fetchRecommendation(city);
     removeTyping(typingEl);
-
-    const formattedReply = formatReply(data.reply);
-    addMessage('bot', formattedReply, data.summary);
-
+    addMessage('bot', formatReply(data.reply), data.summary);
     cityResults[city.name] = data;
     setStatusOnCard(cardEl, '<span class="city-status done">✓ Done</span>');
-  } catch (err) {
+  } catch {
     removeTyping(typingEl);
-    addMessage('bot', `Oops! I couldn't fetch data for ${city.name} right now 😅 — try again in a moment!`);
+    addMessage('bot', `Oops! Couldn't fetch data for ${city.name} right now 😅 — try again in a moment!`);
     setStatusOnCard(cardEl, '<span class="city-status">—</span>');
   } finally {
     cardEl.classList.remove('loading');
@@ -130,7 +312,6 @@ async function handleChatSend() {
 
   chatInput.value = '';
   addMessage('user', msg);
-
   const typingEl = showTyping();
   setAiLoading(true);
 
@@ -151,17 +332,13 @@ async function handleChatSend() {
   }
 }
 
-// ─── API call ─────────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 
 async function fetchRecommendation(city) {
   const res = await fetch('/api/recommend', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
-      city:        city.name,
-      countryCode: city.countryCode,
-      country:     city.country
-    })
+    body:    JSON.stringify({ city: city.name, countryCode: city.countryCode, country: city.country })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -181,7 +358,6 @@ function addMessage(role, htmlContent, summary = null) {
   bubble.className = 'message-bubble';
   bubble.innerHTML = htmlContent;
 
-  // Attach data summary pill if present
   if (summary) {
     const pill = buildSummaryPill(summary);
     if (pill) bubble.appendChild(pill);
@@ -208,18 +384,14 @@ function buildSummaryPill(summary) {
   return pill;
 }
 
-// Convert Claude's verdict line into styled HTML
 function formatReply(text) {
   if (!text) return text;
-
-  // Escape then restore for safety
-  const lines = text.split('\n');
-  return lines.map(line => {
+  return text.split('\n').map(line => {
     if (line.startsWith('🏆 Verdict:') || line.startsWith('Verdict:')) {
       return `<div class="verdict">${line}</div>`;
     }
-    return `<p>${line}</p>`;
-  }).filter(l => l !== '<p></p>').join('');
+    return line ? `<p>${line}</p>` : '';
+  }).join('');
 }
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
@@ -240,23 +412,21 @@ function removeTyping(el) {
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
-// ─── Utility helpers ──────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function scrollChatToBottom() {
-  requestAnimationFrame(() => {
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-  });
+  requestAnimationFrame(() => { chatWindow.scrollTop = chatWindow.scrollHeight; });
 }
 
 function setAiLoading(state) {
-  isAiLoading    = state;
+  isAiLoading = state;
   sendBtn.disabled = state;
   chatInput.disabled = state;
 }
 
 function setStatusOnCard(cardEl, html) {
-  const statusEl = cardEl.querySelector('.city-status, .card-spinner');
-  if (statusEl) statusEl.outerHTML = html;
+  const el = cardEl.querySelector('.city-status, .card-spinner');
+  if (el) el.outerHTML = html;
 }
 
 // ─── Filter buttons ───────────────────────────────────────────────────────────
@@ -267,18 +437,26 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.classList.add('active');
     currentFilter = btn.dataset.filter;
     renderCities();
+    if (currentView === 'map') updateMapFilter();
   });
 });
+
+function updateMapFilter() {
+  if (!leafletMap) return;
+  CITIES.forEach(city => {
+    const marker = mapMarkers[city.name];
+    if (!marker) return;
+    const show = currentFilter === 'all' || city.region === currentFilter;
+    if (show) marker.addTo(leafletMap);
+    else leafletMap.removeLayer(marker);
+  });
+}
 
 // ─── Chat input events ────────────────────────────────────────────────────────
 
 sendBtn.addEventListener('click', handleChatSend);
-
 chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    handleChatSend();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); }
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

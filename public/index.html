@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Claude Travel — Couple's Guide</title>
+  <!-- Leaflet CSS — served locally -->
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -33,7 +35,7 @@
         <div class="message-bubble">
           <p>Hey there, travel lovers! 👋</p>
           <p>I'm <strong>Wanderly</strong> — your couples' travel sidekick. I pull live pricing data from <strong>LiteAPI</strong> and tell you whether a hostel or private room is the smarter pick for each city on your trip.</p>
-          <p>Pick a city on the right and I'll give you the full scoop! 🗺️</p>
+          <p>Pick a city on the map or grid and I'll give you the full scoop! 🗺️</p>
         </div>
       </div>
     </div>
@@ -74,19 +76,55 @@
           <span class="trip-guests">👫 2 Adults · 1 Night</span>
         </div>
       </div>
-      <div class="filter-bar">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="AS">Asia</button>
-        <button class="filter-btn" data-filter="EU">Europe</button>
-        <button class="filter-btn" data-filter="OC">Oceania</button>
+      <div class="header-controls">
+        <!-- View toggle -->
+        <div class="view-toggle">
+          <button class="view-btn active" id="gridViewBtn" title="Card Grid">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            Grid
+          </button>
+          <button class="view-btn" id="mapViewBtn" title="Map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+              <line x1="8" y1="2" x2="8" y2="18"/>
+              <line x1="16" y1="6" x2="16" y2="22"/>
+            </svg>
+            Map
+          </button>
+        </div>
+        <!-- Region filters -->
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="AS">Asia</button>
+          <button class="filter-btn" data-filter="EU">Europe</button>
+          <button class="filter-btn" data-filter="OC">Oceania</button>
+        </div>
       </div>
     </header>
 
-    <div class="cities-grid" id="citiesGrid">
-      <!-- City cards injected by app.js -->
+    <!-- Grid view -->
+    <div class="cities-grid" id="citiesGrid"></div>
+
+    <!-- Map view -->
+    <div class="map-container hidden" id="mapContainer">
+      <div id="accommodationMap"></div>
+      <div class="map-legend">
+        <div class="legend-title">Accommodation Type</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#6c63ff"></span>Asia</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ff6584"></span>Europe</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#43c59e"></span>Oceania</div>
+        <div class="legend-divider"></div>
+        <div class="legend-item"><span class="legend-icon">🏨</span>Has Hostel data</div>
+        <div class="legend-item"><span class="legend-icon">🏩</span>Has Hotel data</div>
+      </div>
     </div>
   </main>
 
+  <!-- Leaflet JS — served locally -->
+  <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
